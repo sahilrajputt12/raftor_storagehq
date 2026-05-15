@@ -1,0 +1,366 @@
+# raftor_storagehq
+
+> Minimal Cloudflare R2 (S3-compatible) storage backend for Frappe / ERPNext.  
+> **No microservices. No queues. No complexity.**  
+> Just a clean override of the `File` doctype class.
+
+---
+
+## How it works
+
+```
+Upload                                Delete
+──────                                ──────
+Browser → Frappe upload handler       User deletes File doc
+        → R2File.save_file()          → R2File.after_delete()
+        → boto3 PUT → R2 bucket       → boto3 DELETE → R2 bucket
+
+Serve (public)         Serve (private)
+──────────────         ───────────────
+/files/logo.png        /private/files/slip.pdf
+→ R2File.download_file()              ─────────────────────────
+→ 302 → CDN URL                       → R2File.download_file()
+   https://cdn.you.com/…/logo.png     → 302 → signed URL (5 min TTL)
+```
+
+### What is NOT changed
+- File doctype fields & metadata
+- ERPNext attachment UI
+- Permissions & access control
+- Thumbnail generation
+- Deduplication logic
+
+---
+
+## Folder structure
+
+```
+raftor_storagehq/
+├── raftor_storagehq/
+│   ├── __init__.py
+│   ├── hooks.py               ← override_doctype_class
+│   ├── api.py                 ← optional whitelisted helpers
+│   └── overrides/
+│       ├── __init__.py
+│       ├── storage_client.py  ← storage facade (backward-compatible API)
+│       └── storage/           ← unified adapter layer (r2/s3/gcs-ready)
+│       └── storage_file.py    ← StorageFile(File) subclass
+├── scripts/
+│   └── test_r2_connection.py  ← standalone connectivity test
+├── example_site_config.json
+├── setup.py
+└── README.md
+```
+
+---
+
+## 1. Prerequisites
+
+| Requirement | Notes |
+|---|---|
+| Frappe / ERPNext | v14 or v15 |
+| Python | 3.10+ |
+| boto3 | installed automatically via `setup.py` |
+| Cloudflare R2 bucket | with an API token that has **Object Read & Write** |
+
+---
+
+## 2. Cloudflare R2 setup
+
+1. Log in to the [Cloudflare dashboard](https://dash.cloudflare.com).
+2. **R2 → Create bucket** → choose a name (e.g. `my-erpnext-files`).
+3. **R2 → Manage R2 API tokens → Create API Token**  
+   - Permissions: **Object Read & Write** on your bucket  
+   - Copy the **Access Key ID** and **Secret Access Key**.
+4. (Optional but recommended) **Add a custom domain** to your bucket for CDN serving of public files.
+
+---
+
+## 3. Install the app
+
+```bash
+# From your bench root
+cd /path/to/bench
+
+# Get the app (local path shown; use git URL for a real repo)
+bench get-app raftor_storagehq /path/to/raftor_storagehq
+
+# Install on your site
+bench --site your.site.com install-app raftor_storagehq
+
+# Restart to pick up the doctype override
+bench restart
+```
+
+> **Tip:** `bench get-app` accepts a git URL:
+> ```bash
+> bench get-app raftor_storagehq https://github.com/yourorg/raftor_storagehq
+> ```
+
+---
+
+## 4. Configure R2 — bench level vs site level
+
+### Precedence (highest → lowest)
+
+```
+sites/<site>/site_config.json       ← site-level  (wins over everything)
+        ↑ overrides
+sites/common_site_config.json       ← bench-level (shared default for all sites)
+```
+
+Frappe merges these automatically.  You only need to set a key at the site
+level when you want to **differ** from the bench default.
+
+---
+
+### 4a. Bench-level defaults (recommended starting point)
+
+Set once, applies to every site on the bench unless overridden:
+
+```bash
+# Enable R2 for the whole bench
+bench set-common-config -c use_r2 1
+bench set-common-config -c storage_provider "r2"
+bench set-common-config -c r2_bucket        "my-erpnext-files"
+bench set-common-config -c r2_endpoint      "https://<ACCOUNT_ID>.r2.cloudflarestorage.com"
+bench set-common-config -c r2_access_key    "<ACCESS_KEY_ID>"
+bench set-common-config -c r2_secret_key    "<SECRET_ACCESS_KEY>"
+bench set-common-config -c r2_public_base_url "https://cdn.yourdomain.com"
+```
+
+This writes to `sites/common_site_config.json`:
+
+```json
+{
+  "use_r2": 1,
+  "storage_provider": "r2",
+  "r2_bucket": "my-erpnext-files",
+  "r2_endpoint": "https://<ACCOUNT_ID>.r2.cloudflarestorage.com",
+  "r2_access_key": "<ACCESS_KEY_ID>",
+  "r2_secret_key": "<SECRET_ACCESS_KEY>",
+  "r2_public_base_url": "https://cdn.yourdomain.com"
+}
+```
+
+---
+
+### 4b. Site-level overrides
+
+Only set what you want to **change** from the bench default.
+
+**Scenario A — inherit everything (nothing to do)**  
+The site gets the bench config automatically. No site-level keys needed.
+
+**Scenario B — site-specific bucket**
+```bash
+bench --site staging.example.com set-config r2_bucket "staging-files"
+bench --site staging.example.com set-config r2_public_base_url "https://cdn-staging.example.com"
+```
+
+**Scenario C — site-specific credentials**
+```bash
+bench --site client-a.example.com set-config r2_access_key "<CLIENT_A_KEY>"
+bench --site client-a.example.com set-config r2_secret_key "<CLIENT_A_SECRET>"
+bench --site client-a.example.com set-config r2_bucket     "client-a-files"
+```
+
+**Scenario D — disable R2 for one site (use local disk)**
+```bash
+# Even if use_r2=1 is set bench-wide, this site falls back to local storage
+bench --site dev.example.com set-config use_r2 0
+```
+
+The resulting `sites/dev.example.com/site_config.json` only needs:
+```json
+{
+  "use_r2": 0
+}
+```
+
+**Scenario E — optional domain-hierarchy prefix**
+Keep the same bucket, but store objects under a hierarchical prefix derived
+from the site name.
+
+Example site:
+```text
+agmc.b2b.markethq.in
+```
+
+Default `site_name` strategy:
+```text
+agmc.b2b.markethq.in/public/file.png
+```
+
+Optional `domain_hierarchy` strategy:
+```text
+markethq/b2b/agmc/public/file.png
+```
+
+Enable it per site:
+```bash
+bench --site agmc.b2b.markethq.in set-config r2_prefix_strategy "domain_hierarchy"
+```
+
+---
+
+### Getting your Cloudflare Account ID and endpoint
+
+Dashboard → **R2 → Overview** → copy your **Account ID**.  
+Endpoint = `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`
+
+---
+
+## 5. Object key layout (multi-site)
+
+Every file is stored under a site-derived prefix so multiple Frappe
+sites can share a single R2 bucket safely:
+
+```
+<site-name>/public/<filename>           ← served via CDN
+<site-name>/private/<filename>          ← served via signed URL
+```
+
+Example:
+```
+erp.mycompany.com/public/company_logo.png
+erp.mycompany.com/private/salary_slip_oct.pdf
+```
+
+Optional `domain_hierarchy` strategy:
+```
+markethq/b2b/agmc/public/company_logo.png
+markethq/b2b/agmc/private/salary_slip_oct.pdf
+```
+
+For a site named `agmc.b2b.markethq.in`, the hierarchy is derived as:
+```
+markethq/b2b/agmc
+```
+
+The bucket does not change; only the object prefix changes.
+
+---
+
+## 6. Migration
+
+Migration is explicit and site-scoped. Existing objects are not moved
+automatically when you enable a new strategy.
+
+### 6a. Preview migration (dry-run)
+```bash
+bench --site agmc.b2b.markethq.in execute \
+  raftor_storagehq.migrate.preview_prefix_migration
+```
+
+### 6b. Execute migration
+```bash
+bench --site agmc.b2b.markethq.in execute --kwargs \
+  '{"dry_run": false}' \
+  raftor_storagehq.migrate.migrate_existing_files
+```
+
+### 6c. Delete old keys after verification
+```bash
+bench --site agmc.b2b.markethq.in execute --kwargs \
+  '{"dry_run": false}' \
+  raftor_storagehq.migrate.cleanup_old_keys
+```
+
+### 6d. Switch the live strategy after migration
+```bash
+bench --site agmc.b2b.markethq.in set-config r2_prefix_strategy "domain_hierarchy"
+bench restart
+```
+
+---
+
+## 7. Testing and Validation
+
+### 7a. Official test entrypoint (bench-based)
+
+```bash
+bench --site your.site.com run-tests --app raftor_storagehq
+```
+
+### 7b. Static sanity
+
+```bash
+python3 -m compileall apps/raftor_storagehq/raftor_storagehq -q
+```
+
+### 7c. Health check via Frappe API
+
+```bash
+bench --site your.site.com execute raftor_storagehq.api.r2_storage_status
+```
+
+Expected: `{"enabled": true, "status": "ok", ...}` when storage is configured.
+
+### 7d. Functional smoke checks
+
+1. Storage-only mode: enable `Enable StorageHQ`, keep `Enable Scheduled Backups to R2` off, upload public/private files via UI.
+2. Backup-only mode: disable `Enable StorageHQ`, enable `Enable Scheduled Backups to R2`, run **Upload Backup Now**.
+3. Combined mode: enable both toggles and verify both flows.
+4. Migration action: use **Actions → Migrate Local Files** and verify migrated/skipped/error summary.
+
+### 7e. Negative checks
+
+1. Enable either toggle with missing provider/credentials and confirm validation blocks save.
+2. Open backups list/download/restore when backup is not configured and verify graceful errors.
+
+---
+
+## 8. Migration paths (canonical)
+
+### 8a. Local disk to cloud (File URL/path migration)
+
+Use the Settings action:
+
+1. Open **StorageHQ Settings**
+2. Configure provider and credentials
+3. Enable `Enable StorageHQ`
+4. Use **Actions → Migrate Local Files**
+
+This migrates File records with local URLs (`/files/...`, `/private/files/...`) into cloud-backed URLs.
+
+### 8b. Cloud key-prefix strategy migration (cloud to cloud)
+
+Use bench methods only:
+
+```bash
+bench --site your.site.com execute raftor_storagehq.migrate.preview_prefix_migration
+bench --site your.site.com execute --kwargs '{"dry_run": false}' raftor_storagehq.migrate.migrate_existing_files
+bench --site your.site.com execute --kwargs '{"dry_run": false}' raftor_storagehq.migrate.cleanup_old_keys
+```
+
+---
+
+## 9. Internal release operator checklist
+
+1. Install app: `bench --site your.site.com install-app raftor_storagehq`
+2. Apply metadata/schema updates: `bench --site your.site.com migrate`
+3. Reload settings DocType (optional explicit step): `bench --site your.site.com reload-doc Raftor StorageHQ doctype storagehq_settings`
+4. Configure provider + credentials in **StorageHQ Settings**
+5. Validate the four modes: both off, storage-only, backup-only, both on
+6. Run migration action if local files exist
+7. Run test gate: `bench --site your.site.com run-tests --app raftor_storagehq`
+8. Verify rollback path: disable toggles to return to native/local behavior
+
+---
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `NoCredentialsError` | Check `r2_access_key` / `r2_secret_key` in site_config |
+| `EndpointResolutionError` | Verify `r2_endpoint` includes `https://` and correct account ID |
+| Files save locally instead of R2 | Confirm `"use_r2": 1` is set (not `"use_r2": "1"`) |
+| Private file shows 403 | Signed URL expired (300 s TTL); refresh the page |
+| Public file shows 403 | CDN/bucket not configured for public access |
+
+---
+
+## License
+
+MIT
