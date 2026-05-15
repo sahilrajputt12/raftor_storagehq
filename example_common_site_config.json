@@ -1,0 +1,21 @@
+{
+  "_comment": "sites/common_site_config.json  –  bench-level defaults, applies to ALL sites",
+
+  "use_r2": 1,
+
+  "_bucket_note": "REQUIRED when use_r2=1. Use a plain bucket name OR bucket/folder/subfolder. The first segment is the S3 bucket name passed to the API; any extra path segments become a root prefix inside the bucket that is prepended to every object key.",
+  "_bucket_examples": {
+    "plain":      "my-erpnext-files",
+    "one_level":  "my-erpnext-files/tenants",
+    "two_levels": "my-erpnext-files/tenants/india"
+  },
+  "r2_bucket": "my-erpnext-files",
+
+  "r2_endpoint": "https://<ACCOUNT_ID>.r2.cloudflarestorage.com",
+  "r2_access_key": "<R2_ACCESS_KEY_ID>",
+  "r2_secret_key": "<R2_SECRET_ACCESS_KEY>",
+  "r2_public_base_url": "https://cdn.yourdomain.com",
+
+  "_scenario_E": "Optional prefix strategy. Omit this key to preserve the current site-name based layout.",
+  "r2_prefix_strategy": "site_name"
+}

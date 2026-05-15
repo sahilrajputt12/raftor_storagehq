@@ -1,0 +1,10 @@
+include README.md
+include example_common_site_config.json
+include example_site_config.json
+recursive-include raftor_storagehq *.py
+recursive-include raftor_storagehq *.json
+recursive-include raftor_storagehq *.js
+recursive-include raftor_storagehq *.css
+recursive-include raftor_storagehq *.html
+recursive-include scripts *.py
+

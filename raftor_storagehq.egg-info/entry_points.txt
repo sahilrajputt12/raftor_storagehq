@@ -1,0 +1,2 @@
+[console_scripts]
+raftor-storagehq-test-r2 = raftor_storagehq.cli:main

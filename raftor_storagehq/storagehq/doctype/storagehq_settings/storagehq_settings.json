@@ -1,0 +1,189 @@
+{
+ "doctype": "DocType",
+ "name": "StorageHQ Settings",
+ "module": "StorageHQ",
+ "issingle": 1,
+ "engine": "InnoDB",
+ "editable_grid": 1,
+ "track_changes": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "quick_entry": 1,
+ "field_order": [
+  "tab_storage",
+  "enabled",
+  "provider_section",
+  "provider",
+  "prefix_strategy",
+  "public_base_url",
+  "private_url_expiry_seconds",
+  "credentials_section",
+  "bucket",
+  "endpoint",
+  "region",
+  "access_key",
+  "secret_key",
+  "behaviour_section",
+  "allow_fallback_to_local",
+  "tab_backup",
+  "backup_enabled",
+  "backup_frequency",
+  "keep_backups_for_days",
+  "delete_local_backups_after_upload",
+  "backup_actions_section",
+  "backup_actions_html"
+ ],
+ "fields": [
+  {
+   "fieldname": "tab_storage",
+   "fieldtype": "Tab Break",
+   "label": "Storage Configuration"
+  },
+  {
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enable StorageHQ",
+   "default": "0"
+  },
+  {
+   "fieldname": "provider_section",
+   "fieldtype": "Section Break",
+   "label": "Provider"
+  },
+  {
+   "fieldname": "provider",
+   "fieldtype": "Select",
+   "label": "Storage Provider",
+   "options": "r2\ns3\nminio",
+   "reqd": 0,
+   "depends_on": "eval:doc.enabled==1 || doc.backup_enabled==1"
+  },
+  {
+   "fieldname": "prefix_strategy",
+   "fieldtype": "Select",
+   "label": "Prefix Strategy",
+   "options": "site_name\ndomain_hierarchy",
+   "default": "site_name"
+  },
+  {
+   "fieldname": "public_base_url",
+   "fieldtype": "Data",
+   "label": "Public Base URL",
+   "description": "CDN/base URL used for serving public files when provider is cloud",
+   "depends_on": "eval:doc.enabled==1 || doc.backup_enabled==1"
+  },
+  {
+   "fieldname": "private_url_expiry_seconds",
+   "fieldtype": "Int",
+   "label": "Private URL Expiry (Seconds)",
+   "default": "300",
+   "description": "Signed URL TTL for private files",
+   "depends_on": "eval:doc.enabled==1 || doc.backup_enabled==1"
+  },
+  {
+   "fieldname": "credentials_section",
+   "fieldtype": "Section Break",
+   "label": "Credentials",
+   "depends_on": "eval:doc.enabled==1 || doc.backup_enabled==1"
+  },
+  {
+   "fieldname": "bucket",
+   "fieldtype": "Data",
+   "label": "Bucket",
+   "depends_on": "eval:doc.enabled==1 || doc.backup_enabled==1"
+  },
+  {
+   "fieldname": "endpoint",
+   "fieldtype": "Data",
+   "label": "Endpoint",
+   "depends_on": "eval:doc.enabled==1 || doc.backup_enabled==1"
+  },
+  {
+   "fieldname": "region",
+   "fieldtype": "Data",
+   "label": "Region",
+   "depends_on": "eval:doc.enabled==1 || doc.backup_enabled==1"
+  },
+  {
+   "fieldname": "access_key",
+   "fieldtype": "Password",
+   "label": "Access Key",
+   "depends_on": "eval:doc.enabled==1 || doc.backup_enabled==1"
+  },
+  {
+   "fieldname": "secret_key",
+   "fieldtype": "Password",
+   "label": "Secret Key",
+   "depends_on": "eval:doc.enabled==1 || doc.backup_enabled==1"
+  },
+  {
+   "fieldname": "behaviour_section",
+   "fieldtype": "Section Break",
+   "label": "Behaviour"
+  },
+  {
+   "fieldname": "allow_fallback_to_local",
+   "fieldtype": "Check",
+   "label": "Allow Fallback to Local Disk",
+   "default": "1",
+   "description": "If cloud upload fails, attempt to save to local disk"
+  },
+  {
+   "fieldname": "tab_backup",
+   "fieldtype": "Tab Break",
+   "label": "Backup & Restore"
+  },
+  {
+   "fieldname": "backup_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Scheduled Backups to R2",
+   "default": "0"
+  },
+  {
+   "fieldname": "backup_frequency",
+   "fieldtype": "Select",
+   "label": "Backup Frequency",
+   "options": "None\nDaily\nWeekly\nMonthly",
+   "default": "None",
+   "depends_on": "eval:doc.backup_enabled==1"
+  },
+  {
+   "fieldname": "keep_backups_for_days",
+   "fieldtype": "Int",
+   "label": "Keep Backups For (Days)",
+   "default": "7",
+   "description": "Backups older than this will be automatically deleted from R2",
+   "depends_on": "eval:doc.backup_enabled==1"
+  },
+  {
+   "fieldname": "delete_local_backups_after_upload",
+   "fieldtype": "Check",
+   "label": "Delete Local Backups After Upload",
+   "default": "1",
+   "description": "Remove local backup files from disk after successful upload to cloud storage",
+   "depends_on": "eval:doc.backup_enabled==1"
+  },
+  {
+   "fieldname": "backup_actions_section",
+   "fieldtype": "Section Break",
+   "label": "Backups in R2"
+  },
+  {
+   "fieldname": "backup_actions_html",
+   "fieldtype": "HTML",
+   "label": "Backup Actions"
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  }
+ ]
+}

@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "raftor_storagehq"
+description = "Cloudflare R2 storage backend for Frappe / ERPNext"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+  { name = "Raftor Technologies" }
+]
+dependencies = [
+  "boto3>=1.28.0",
+]
+dynamic = ["version"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+]
+
+[project.scripts]
+raftor-storagehq-test-r2 = "raftor_storagehq.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["raftor_storagehq*"]
+
+[tool.setuptools.package-data]
+raftor_storagehq = ["**/*.json", "**/*.md"]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.dynamic]
+version = { attr = "raftor_storagehq.__version__" }
