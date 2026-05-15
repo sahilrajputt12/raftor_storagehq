@@ -7,4 +7,3 @@ recursive-include raftor_storagehq *.js
 recursive-include raftor_storagehq *.css
 recursive-include raftor_storagehq *.html
 recursive-include scripts *.py
-

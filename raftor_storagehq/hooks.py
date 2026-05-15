@@ -13,6 +13,11 @@ override_doctype_class = {
 }
 
 # ---------------------------------------------------------------------------
+# Frontend bundle — required so bench build resolves a valid public/ path.
+# ---------------------------------------------------------------------------
+app_include_js = "/assets/raftor_storagehq/js/raftor_storagehq.bundle.js"
+
+# ---------------------------------------------------------------------------
 # Expose whitelisted API methods so Frappe's router can find them.
 # ---------------------------------------------------------------------------
 override_whitelisted_methods = {
